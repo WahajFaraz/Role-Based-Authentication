@@ -32,6 +32,7 @@ const EnhancedRegister = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [focusedField, setFocusedField] = useState('');
   const [success, setSuccess] = useState(false);
+  const [passwordStrength, setPasswordStrength] = useState(0);
   const [floatingElements, setFloatingElements] = useState([]);
 
   const navigate = useNavigate();
