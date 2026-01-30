@@ -15,7 +15,11 @@ import {
   Shield,
   LogOut,
   Save,
-  Loader2
+  Loader2,
+  RefreshCw,
+  Plus,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { userAPI } from '../services/api';
 import toast, { Toaster } from 'react-hot-toast';
@@ -35,6 +39,7 @@ const AdminDashboard = () => {
   const [sortField, setSortField] = useState('createdAt');
   const [sortDirection, setSortDirection] = useState('desc');
   const [selectedUsers, setSelectedUsers] = useState([]);
+  const [showFilters, setShowFilters] = useState(false);
 
   const navigate = useNavigate();
   const { user: currentUser, logout } = useAuth();
@@ -97,6 +102,34 @@ const AdminDashboard = () => {
     navigate('/login');
   };
 
+  const handleSelectUser = (userId) => {
+    setSelectedUsers(prev => 
+      prev.includes(userId) 
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedUsers.length === users.length) {
+      setSelectedUsers([]);
+    } else {
+      setSelectedUsers(users.map(user => user._id));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    try {
+      await Promise.all(selectedUsers.map(userId => userAPI.deleteUser(userId)));
+      setUsers(users.filter(user => !selectedUsers.includes(user._id)));
+      setSelectedUsers([]);
+      toast.success(`${selectedUsers.length} users deleted successfully`);
+    } catch (error) {
+      console.error('Failed to delete users:', error);
+      toast.error('Failed to delete users');
+    }
+  };
+
   const pagination = useMemo(() => {
     const totalUsers = users.length;
     const totalPages = Math.ceil(totalUsers / usersPerPage);
@@ -112,7 +145,7 @@ const AdminDashboard = () => {
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
-      fetchUsers(newPage);
+      setCurrentPage(newPage);
     }
   };
 
@@ -217,14 +250,61 @@ const AdminDashboard = () => {
 
         <div className="action-buttons">
           <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="filter-btn"
+          >
+            <Filter />
+            Advanced Filters
+          </button>
+
+          <button
             onClick={() => fetchUsers()}
             className="refresh-btn"
           >
-            <Loader2 className="animate-spin" />
+            <RefreshCw />
             Refresh Data
           </button>
+
+          {selectedUsers.length > 0 && (
+            <button
+              onClick={() => handleBulkDelete()}
+              className="bulk-delete-btn"
+            >
+              <Trash2 />
+              Delete ({selectedUsers.length}) Users
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Filters Panel */}
+      {showFilters && (
+        <div className="admin-filters-panel">
+          <div className="filters-content">
+            <div className="filter-group">
+              <label>Filter by Role</label>
+              <select
+                value={filterRole}
+                onChange={(e) => setFilterRole(e.target.value)}
+                className="filter-select"
+              >
+                <option value="all">All Users</option>
+                <option value="admin">Admins Only</option>
+                <option value="user">Normal Users Only</option>
+              </select>
+            </div>
+            
+            <div className="filter-actions">
+              <button
+                onClick={() => setShowFilters(false)}
+                className="apply-filters-btn"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Users Table */}
       <div className="users-table-container">
@@ -250,7 +330,7 @@ const AdminDashboard = () => {
                 onClick={() => navigate('/users/new')}
                 className="add-first-user-btn"
               >
-                <UserPlus />
+                <Plus />
                 Add Your First User
               </button>
             )}
@@ -260,16 +340,60 @@ const AdminDashboard = () => {
             <table className="admin-users-table">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Role</th>
-                  <th>Created At</th>
+                  <th>
+                    <input
+                      type="checkbox"
+                      checked={selectedUsers.length === users.length}
+                      onChange={handleSelectAll}
+                      className="select-all-checkbox"
+                    />
+                  </th>
+                  <th onClick={() => handleSort('name')} className="sortable">
+                    Name
+                    {sortField === 'name' && (
+                      <span className="sort-indicator">
+                        {sortDirection === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                  </th>
+                  <th onClick={() => handleSort('email')} className="sortable">
+                    Email
+                    {sortField === 'email' && (
+                      <span className="sort-indicator">
+                        {sortDirection === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                  </th>
+                  <th onClick={() => handleSort('role')} className="sortable">
+                    Role
+                    {sortField === 'role' && (
+                      <span className="sort-indicator">
+                        {sortDirection === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                  </th>
+                  <th onClick={() => handleSort('createdAt')} className="sortable">
+                    Created At
+                    {sortField === 'createdAt' && (
+                      <span className="sort-indicator">
+                        {sortDirection === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                  </th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {users.map((user) => (
-                  <tr key={user._id} className="admin-user-row">
+                  <tr key={user._id} className={`admin-user-row ${selectedUsers.includes(user._id) ? 'selected' : ''}`}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selectedUsers.includes(user._id)}
+                        onChange={() => handleSelectUser(user._id)}
+                        className="user-checkbox"
+                      />
+                    </td>
                     <td>
                       <div className="user-info">
                         <div className="user-avatar">
@@ -290,23 +414,21 @@ const AdminDashboard = () => {
                       </span>
                     </td>
                     <td className="date-cell">{formatDate(user.createdAt)}</td>
-                    <td>
-                      <div className="action-buttons">
-                        <button
-                          onClick={() => navigate(`/users/${user._id}/edit`)}
-                          className="admin-edit-btn"
-                          title="Edit user"
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteUser(user._id)}
-                          className="admin-delete-btn"
-                          title="Delete user"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
+                    <td className="actions-cell">
+                      <button
+                        onClick={() => navigate(`/users/${user._id}/edit`)}
+                        className="admin-edit-btn"
+                        title="Edit user"
+                      >
+                        <Edit size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteUser(user._id)}
+                        className="admin-delete-btn"
+                        title="Delete user"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -327,10 +449,11 @@ const AdminDashboard = () => {
           
           <div className="pagination-controls">
             <button
-              onClick={() => handlePageChange(currentPage - 1)}
+              onClick={() => handlePageChange(pagination.currentPage - 1)}
               disabled={!pagination.hasPrevPage}
               className="pagination-btn"
             >
+              <ChevronLeft />
               Previous
             </button>
             
@@ -339,11 +462,12 @@ const AdminDashboard = () => {
             </span>
             
             <button
-              onClick={() => handlePageChange(currentPage + 1)}
+              onClick={() => handlePageChange(pagination.currentPage + 1)}
               disabled={!pagination.hasNextPage}
               className="pagination-btn"
             >
               Next
+              <ChevronRight />
             </button>
           </div>
         </div>
