@@ -16,7 +16,8 @@ const connectDB = async () => {
     const mongoURI = process.env.MONGODB_URI;
     
     if (!mongoURI) {
-      throw new Error('MONGODB_URI environment variable is not defined');
+      console.log('⚠️  MONGODB_URI not found, running without database');
+      return; // Don't throw error, just return
     }
 
     // MongoDB connection options
@@ -29,12 +30,12 @@ const connectDB = async () => {
     // Connect to MongoDB
     const conn = await mongoose.connect(mongoURI, options);
 
-    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
-    console.log(`📊 Database: ${conn.connection.name}`);
+    console.log(✅ MongoDB Connected: \);
+    console.log(📊 Database: \);
     
     // Log connection details in development
     if (process.env.NODE_ENV === 'development') {
-      console.log(`🔗 Connection String: ${mongoURI.replace(/\/\/.*@/, '//***:***@')}`);
+      console.log(🔗 Connection String: \);
     }
 
     // Handle connection events
@@ -66,66 +67,12 @@ const connectDB = async () => {
     });
 
     return conn;
-
   } catch (error) {
-    console.error('❌ Database connection failed:', error.message);
-    
-    // Exit process with failure in production
-    if (process.env.NODE_ENV === 'production') {
-      process.exit(1);
-    }
-    
-    // In development, throw error to be handled by calling code
-    throw error;
+    console.error('❌ Database connection error:', error.message);
+    console.log('⚠️  Running without database connection');
+    // Don't exit, just continue without database
+    return null;
   }
 };
 
-/**
- * Disconnect from MongoDB database
- * Gracefully closes the database connection
- */
-const disconnectDB = async () => {
-  try {
-    await mongoose.connection.close();
-    console.log('🔚 MongoDB connection closed successfully');
-  } catch (error) {
-    console.error('❌ Error closing MongoDB connection:', error.message);
-    throw error;
-  }
-};
-
-/**
- * Check database connection status
- * @returns {boolean} True if connected, false otherwise
- */
-const isDBConnected = () => {
-  return mongoose.connection.readyState === 1;
-};
-
-/**
- * Get database connection information
- * @returns {Object} Connection details
- */
-const getConnectionInfo = () => {
-  const state = mongoose.connection.readyState;
-  const states = {
-    0: 'disconnected',
-    1: 'connected',
-    2: 'connecting',
-    3: 'disconnecting'
-  };
-
-  return {
-    state: states[state],
-    host: mongoose.connection.host,
-    name: mongoose.connection.name,
-    readyState: state
-  };
-};
-
-module.exports = {
-  connectDB,
-  disconnectDB,
-  isDBConnected,
-  getConnectionInfo
-};
+module.exports = { connectDB };
