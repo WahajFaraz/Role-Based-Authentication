@@ -19,13 +19,14 @@ const UserProfile = () => {
     newPassword: '',
     confirmPassword: ''
   });
-  const [errors, setErrors] = useState({});
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [fetchLoading, setFetchLoading] = useState(false);
-  const [accessDenied, setAccessDenied] = useState(false);
+  const [fetchLoading, setFetchLoading] = useState(true);
+  const [showPasswords, setShowPasswords] = useState({
+    current: false,
+    new: false,
+    confirm: false
+  });
+  const [errors, setErrors] = useState({});
 
   const navigate = useNavigate();
   const { user: currentUser, logout } = useAuth();
@@ -43,10 +44,14 @@ const UserProfile = () => {
         name: response.user.name || '',
         email: response.user.email || ''
       }));
-      setFetchLoading(false);
     } catch (error) {
-      console.error('Failed to fetch profile:', error);
-      toast.error('Failed to load profile');
+      const errorMessage = error.response?.data?.message || 'Failed to fetch profile';
+      toast.error(errorMessage);
+      
+      if (error.response?.status === 401) {
+        logout();
+      }
+    } finally {
       setFetchLoading(false);
     }
   };
@@ -54,35 +59,27 @@ const UserProfile = () => {
   const validateForm = () => {
     const newErrors = {};
 
-    // Name validation
     if (!profileData.name.trim()) {
       newErrors.name = 'Name is required';
+    } else if (profileData.name.trim().length < 2) {
+      newErrors.name = 'Name must be at least 2 characters';
     }
 
-    // Email validation
-    if (!profileData.email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(profileData.email)) {
-      newErrors.email = 'Please enter a valid email address';
-    }
-
-    // Current password validation (for password changes)
-    if (profileData.currentPassword || profileData.newPassword) {
+    // Password validation only if password fields are filled
+    if (profileData.currentPassword || profileData.newPassword || profileData.confirmPassword) {
       if (!profileData.currentPassword) {
-        newErrors.currentPassword = 'Current password is required to change password';
+        newErrors.currentPassword = 'Current password is required';
       }
-    }
 
-    // New password validation
-    if (profileData.newPassword) {
-      if (profileData.newPassword.length < 6) {
-        newErrors.newPassword = 'New password must be at least 6 characters long';
+      if (!profileData.newPassword) {
+        newErrors.newPassword = 'New password is required';
+      } else if (profileData.newPassword.length < 6) {
+        newErrors.newPassword = 'Password must be at least 6 characters';
       }
-    }
 
-    // Confirm password validation
-    if (profileData.newPassword && profileData.confirmPassword) {
-      if (profileData.newPassword !== profileData.confirmPassword) {
+      if (!profileData.confirmPassword) {
+        newErrors.confirmPassword = 'Please confirm your new password';
+      } else if (profileData.newPassword !== profileData.confirmPassword) {
         newErrors.confirmPassword = 'Passwords do not match';
       }
     }
@@ -101,28 +98,18 @@ const UserProfile = () => {
     setLoading(true);
 
     try {
-      const updateData = {};
-      
-      // Only include fields that have values
-      if (profileData.name) updateData.name = profileData.name.trim();
-      if (profileData.email) updateData.email = profileData.email.toLowerCase().trim();
-      
-      // Handle password change
+      const updateData = {
+        name: profileData.name.trim()
+      };
+
+      // Only include password if user wants to change it
       if (profileData.currentPassword && profileData.newPassword) {
         updateData.currentPassword = profileData.currentPassword;
-        updateData.newPassword = profileData.newPassword;
-        updateData.confirmPassword = profileData.confirmPassword;
+        updateData.password = profileData.newPassword;
       }
 
-      const response = await userAPI.updateProfile(currentUser._id, updateData);
+      await userAPI.updateUser(currentUser._id, updateData);
       toast.success('Profile updated successfully!');
-      
-      // Reset form fields after successful update
-      setProfileData({
-        name: response.user.name,
-        email: response.user.email
-      });
-      setErrors({});
       
       // If password was changed, clear auth credentials and force logout
       if (profileData.currentPassword && profileData.newPassword) {
@@ -141,22 +128,48 @@ const UserProfile = () => {
         return; // Don't clear password fields since we're logging out
       }
       
-      // Clear password fields if no password change
-      if (profileData.currentPassword || profileData.newPassword) {
-        setProfileData(prev => ({
-          ...prev,
-          currentPassword: '',
-          newPassword: '',
-          confirmPassword: ''
-        }));
-      }
+      // Clear password fields after successful update (only if not password change)
+      setProfileData(prev => ({
+        ...prev,
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      }));
+      
+      // Update current user data in context if needed
     } catch (error) {
-      console.error('Failed to update profile:', error);
       const errorMessage = error.response?.data?.message || 'Failed to update profile';
       toast.error(errorMessage);
+      
+      if (error.response?.status === 401) {
+        logout();
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setProfileData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    
+    // Clear error for this field when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({
+        ...prev,
+        [name]: ''
+      }));
+    }
+  };
+
+  const togglePasswordVisibility = (field) => {
+    setShowPasswords(prev => ({
+      ...prev,
+      [field]: !prev[field]
+    }));
   };
 
   const handleLogout = () => {
@@ -164,65 +177,42 @@ const UserProfile = () => {
     navigate('/login');
   };
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setProfileData(prev => ({ ...prev, [name]: value }));
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
-    }
-  };
-
-  const handlePasswordChange = (e) => {
-    const { name, value } = e.target;
-    setProfileData(prev => ({ ...prev, [name]: value }));
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
-    }
-  };
-
-  const togglePasswordVisibility = (passwordType) => {
-    if (passwordType === 'current') {
-      setShowCurrentPassword(!showCurrentPassword);
-    } else if (passwordType === 'new') {
-      setShowNewPassword(!showNewPassword);
-    } else if (passwordType === 'confirm') {
-      setShowConfirmPassword(!showConfirmPassword);
-    }
-  };
-
   if (fetchLoading) {
     return (
-      <div className="user-profile-container">
-        <div className="loading">Loading profile data...</div>
-      </div>
-    );
-  }
-
-  if (accessDenied) {
-    return (
-      <div className="access-denied">
-        <div className="access-denied-content">
-          <AlertCircle size={48} />
-          <h2>Access Denied</h2>
-          <p>You don't have permission to edit this profile.</p>
-          <button onClick={() => navigate('/dashboard')} className="back-btn">
-            Back to Dashboard
-          </button>
+      <div className="user-profile">
+        <div className="loading-state">
+          <Loader2 className="animate-spin" />
+          <p>Loading profile...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="user-profile-container">
+    <div className="user-profile">
       <Toaster position="top-right" />
       
       {/* Header */}
-      <div className="profile-header">
+      <motion.div
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.1 }}
+        className="profile-header"
+      >
         <div className="header-left">
-          <div className="header-icon">
+          <motion.div
+            animate={{
+              rotate: [0, 10, -10, 0]
+            }}
+            transition={{
+              duration: 4,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="header-icon"
+          >
             <User />
-          </div>
+          </motion.div>
           <div>
             <h1>My Profile</h1>
             <p>Manage your personal information</p>
@@ -230,175 +220,207 @@ const UserProfile = () => {
         </div>
 
         <div className="header-right">
-          <button
-            className="logout-btn"
+          <motion.button
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={handleLogout}
+            className="logout-btn"
           >
             <LogOut />
             Logout
-          </button>
+          </motion.button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Profile Form */}
-      <div className="profile-form">
-        <form onSubmit={handleSubmit}>
-          {/* Personal Information Section */}
+      <motion.div
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.2 }}
+        className="profile-container"
+      >
+        <form onSubmit={handleSubmit} className="profile-form">
+          {/* User Info Section */}
           <div className="form-section">
-            <h3>Personal Information</h3>
+            <h2>
+              <User size={20} />
+              Personal Information
+            </h2>
             
             <div className="form-group">
-              <label>
-                <User size={16} className="label-icon" />
+              <label htmlFor="name">
+                <User size={16} />
                 Full Name
               </label>
               <input
                 type="text"
-                placeholder="Enter your full name"
+                id="name"
+                name="name"
                 value={profileData.name}
                 onChange={handleInputChange}
                 className={`form-input ${errors.name ? 'error' : ''}`}
-                disabled={loading}
+                placeholder="Enter your full name"
               />
               {errors.name && (
-                <div className="error-message">
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="error-message"
+                >
                   <AlertCircle size={14} />
                   {errors.name}
-                </div>
+                </motion.div>
               )}
             </div>
 
             <div className="form-group">
-              <label>
-                <Mail size={16} className="label-icon" />
+              <label htmlFor="email">
+                <Mail size={16} />
                 Email Address
               </label>
               <input
                 type="email"
-                placeholder="Enter your email address"
+                id="email"
+                name="email"
                 value={profileData.email}
-                onChange={handleInputChange}
-                className={`form-input ${errors.email ? 'error' : ''} readonly`}
-                disabled={loading}
+                readOnly
+                className="form-input readonly"
+                placeholder="Your email address"
               />
-              {errors.email && (
-                <div className="error-message">
-                  <AlertCircle size={14} />
-                  {errors.email}
-                </div>
-              )}
+              <small className="form-help">Email address cannot be changed</small>
             </div>
           </div>
 
-          {/* Password Change Section */}
+          {/* Password Section */}
           <div className="form-section">
-            <h3>Change Password</h3>
+            <h2>
+              <Lock size={20} />
+              Change Password
+            </h2>
+            <p className="section-description">Leave empty if you don't want to change your password</p>
             
             <div className="form-group">
-              <label>
-                <Lock size={16} className="label-icon" />
+              <label htmlFor="currentPassword">
+                <Lock size={16} />
                 Current Password
               </label>
               <div className="password-input-wrapper">
                 <input
-                  type={showCurrentPassword ? 'text' : 'password'}
-                  placeholder="Enter current password"
+                  type={showPasswords.current ? 'text' : 'password'}
+                  id="currentPassword"
+                  name="currentPassword"
                   value={profileData.currentPassword}
-                  onChange={handlePasswordChange}
+                  onChange={handleInputChange}
                   className={`form-input ${errors.currentPassword ? 'error' : ''}`}
-                  disabled={loading}
+                  placeholder="Enter current password"
                 />
                 <button
                   type="button"
                   onClick={() => togglePasswordVisibility('current')}
                   className="password-toggle"
-                  disabled={loading}
                 >
-                  {showCurrentPassword ? <EyeOff /> : <Eye />}
+                  {showPasswords.current ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
               {errors.currentPassword && (
-                <div className="error-message">
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="error-message"
+                >
                   <AlertCircle size={14} />
                   {errors.currentPassword}
-                </div>
+                </motion.div>
               )}
             </div>
 
             <div className="form-group">
-              <label>
-                <Lock size={16} className="label-icon" />
+              <label htmlFor="newPassword">
+                <Lock size={16} />
                 New Password
               </label>
               <div className="password-input-wrapper">
                 <input
-                  type={showNewPassword ? 'text' : 'password'}
-                  placeholder="Enter new password"
+                  type={showPasswords.new ? 'text' : 'password'}
+                  id="newPassword"
+                  name="newPassword"
                   value={profileData.newPassword}
-                  onChange={handlePasswordChange}
+                  onChange={handleInputChange}
                   className={`form-input ${errors.newPassword ? 'error' : ''}`}
-                  disabled={loading}
+                  placeholder="Enter new password"
                 />
                 <button
                   type="button"
                   onClick={() => togglePasswordVisibility('new')}
                   className="password-toggle"
-                  disabled={loading}
                 >
-                  {showNewPassword ? <EyeOff /> : <Eye />}
+                  {showPasswords.new ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
               {errors.newPassword && (
-                <div className="error-message">
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="error-message"
+                >
                   <AlertCircle size={14} />
                   {errors.newPassword}
-                </div>
+                </motion.div>
               )}
             </div>
 
             <div className="form-group">
-              <label>
-                <Lock size={16} className="label-icon" />
+              <label htmlFor="confirmPassword">
+                <Lock size={16} />
                 Confirm New Password
               </label>
               <div className="password-input-wrapper">
                 <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  placeholder="Confirm new password"
+                  type={showPasswords.confirm ? 'text' : 'password'}
+                  id="confirmPassword"
+                  name="confirmPassword"
                   value={profileData.confirmPassword}
-                  onChange={handlePasswordChange}
+                  onChange={handleInputChange}
                   className={`form-input ${errors.confirmPassword ? 'error' : ''}`}
-                  disabled={loading}
+                  placeholder="Confirm new password"
                 />
                 <button
                   type="button"
                   onClick={() => togglePasswordVisibility('confirm')}
                   className="password-toggle"
-                  disabled={loading}
                 >
-                  {showConfirmPassword ? <EyeOff /> : <Eye />}
+                  {showPasswords.confirm ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
               {errors.confirmPassword && (
-                <div className="error-message">
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="error-message"
+                >
                   <AlertCircle size={14} />
                   {errors.confirmPassword}
-                </div>
+                </motion.div>
               )}
             </div>
           </div>
 
           {/* Submit Button */}
           <div className="form-actions">
-            <button
+            <motion.button
               type="submit"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               disabled={loading}
               className="submit-btn"
             >
               {loading ? (
                 <>
-                  <div className="loading-spinner"></div>
-                  Saving...
+                  <Loader2 className="animate-spin" />
+                  Updating...
                 </>
               ) : (
                 <>
@@ -406,10 +428,10 @@ const UserProfile = () => {
                   Save Changes
                 </>
               )}
-            </button>
+            </motion.button>
           </div>
         </form>
-      </div>
+      </motion.div>
     </div>
   );
 };

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { userAPI } from '../services/api';
 import { 
@@ -8,19 +7,17 @@ import {
   Lock, 
   Eye, 
   EyeOff, 
-  CheckCircle, 
-  AlertCircle, 
-  Loader2,
-  Sparkles,
   Shield,
-  Zap
+  CheckCircle,
+  Sparkles,
+  AlertCircle
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
-import './EnhancedRegister.css';
+import './EnhancedLogin.css';
 
 /**
  * Enhanced Register Component with Next-Level UI
- * Features: Advanced animations, icons, toast notifications, micro-interactions
+ * Features: Advanced styling, icons, toast notifications, micro-interactions
  */
 const EnhancedRegister = () => {
   const [formData, setFormData] = useState({
@@ -33,109 +30,82 @@ const EnhancedRegister = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [passwordStrength, setPasswordStrength] = useState(0);
+  const [focusedField, setFocusedField] = useState('');
   const [success, setSuccess] = useState(false);
-  const [focusedField, setFocusedField] = useState(null);
+  const [floatingElements, setFloatingElements] = useState([]);
 
   const navigate = useNavigate();
 
-  // Floating animation background elements
-  const [floatingElements, setFloatingElements] = useState([]);
-
+  // Generate random floating elements for background
   useEffect(() => {
-    // Generate random floating elements
     const elements = Array.from({ length: 6 }, (_, i) => ({
       id: i,
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      size: Math.random() * 30 + 20,
-      duration: Math.random() * 20 + 10
+      x: Math.random() * 80 + 10,
+      y: Math.random() * 80 + 10,
+      size: Math.random() * 40 + 20,
+      duration: Math.random() * 3 + 2
     }));
     setFloatingElements(elements);
   }, []);
 
-  /**
-   * Calculate password strength
-   */
-  const calculatePasswordStrength = (password) => {
-    let strength = 0;
-    if (password.length >= 8) strength++;
-    if (password.length >= 12) strength++;
-    if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
-    if (/\d/.test(password)) strength++;
-    if (/[^a-zA-Z\d]/.test(password)) strength++;
-    return Math.min(strength, 4);
-  };
-
-  /**
-   * Handle input changes with validation
-   */
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-
-    // Clear field-specific error
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
-    }
-
-    // Calculate password strength
-    if (name === 'password') {
-      setPasswordStrength(calculatePasswordStrength(value));
-    }
-  };
-
-  /**
-   * Validate form with enhanced feedback
-   */
   const validateForm = () => {
     const newErrors = {};
 
     if (!formData.name.trim()) {
       newErrors.name = 'Name is required';
-      toast.error('Please enter your name');
-    } else if (formData.name.trim().length < 2) {
-      newErrors.name = 'Name must be at least 2 characters';
-      toast.error('Name must be at least 2 characters');
     }
 
     if (!formData.email.trim()) {
       newErrors.email = 'Email is required';
-      toast.error('Please enter your email');
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = 'Please enter a valid email address';
-      toast.error('Please enter a valid email address');
     }
 
-    if (!formData.password.trim()) {
+    if (!formData.password) {
       newErrors.password = 'Password is required';
-      toast.error('Please enter a password');
     } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
-      toast.error('Password must be at least 6 characters');
+      newErrors.password = 'Password must be at least 6 characters long';
     }
 
-    if (!formData.confirmPassword.trim()) {
+    if (!formData.confirmPassword) {
       newErrors.confirmPassword = 'Please confirm your password';
-      toast.error('Please confirm your password');
     } else if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Passwords do not match';
-      toast.error('Passwords do not match');
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  /**
-   * Handle form submission with loading states
-   */
+  const getPasswordStrength = () => {
+    const password = formData.password;
+    let strength = 0;
+    
+    if (password.length >= 8) strength++;
+    if (password.length >= 12) strength++;
+    if (/[A-Z]/.test(password)) strength++;
+    if (/[0-9]/.test(password)) strength++;
+    if (/[^A-Za-z0-9]/.test(password)) strength++;
+    
+    return strength;
+  };
+
+  const getPasswordStrengthColor = () => {
+    const strength = getPasswordStrength();
+    if (strength <= 2) return '#ef4444';
+    if (strength <= 3) return '#f59e0b';
+    if (strength <= 4) return '#10b981';
+    return '#22c55e';
+  };
+
+  const getPasswordStrengthText = () => {
+    const strength = getPasswordStrength();
+    if (strength <= 2) return 'Weak';
+    if (strength <= 3) return 'Fair';
+    if (strength <= 4) return 'Good';
+    return 'Strong';
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -144,387 +114,261 @@ const EnhancedRegister = () => {
     }
 
     setIsSubmitting(true);
-    toast.loading('Creating your account...', { id: 'register' });
 
     try {
-      const userData = {
+      await userAPI.createUser({
         name: formData.name.trim(),
-        email: formData.email.trim(),
-        password: formData.password
-      };
-
-      await userAPI.createUser(userData);
-      
-      toast.success('Account created successfully!', { id: 'register' });
-      
-      // Clear form
-      setFormData({
-        name: '',
-        email: '',
-        password: '',
-        confirmPassword: ''
+        email: formData.email.toLowerCase().trim(),
+        password: formData.password,
+        role: 'user'
       });
+
+      toast.success('Account created successfully!', { id: 'register' });
+      setFormData({ name: '', email: '', password: '', confirmPassword: '' });
       setPasswordStrength(0);
       
-      // Redirect to login after successful signup
       setTimeout(() => {
         navigate('/login');
       }, 1500);
-      
     } catch (error) {
+      console.error('Registration error:', error);
       const errorMessage = error.response?.data?.message || 'Registration failed';
       toast.error(errorMessage, { id: 'register' });
-      setSuccess(false);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  /**
-   * Handle login redirect
-   */
   const handleLoginRedirect = () => {
     navigate('/login');
   };
 
-  // Password strength indicator
-  const getPasswordStrengthColor = () => {
-    const colors = ['#ef4444', '#f59e0b', '#eab308', '#22c55e'];
-    return colors[passwordStrength] || '#e5e7eb';
+  const handleFocus = (field) => {
+    setFocusedField(field);
   };
 
-  const getPasswordStrengthText = () => {
-    const texts = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong'];
-    return texts[passwordStrength] || '';
+  const handleBlur = () => {
+    setFocusedField('');
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="enhanced-register-container"
-    >
-      <Toaster position="top-center" />
+    <div className="enhanced-register-container">
+      <Toaster position="top-right" />
       
       {/* Floating background elements */}
       {floatingElements.map((element) => (
-        <motion.div
+        <div
           key={element.id}
           className="floating-element"
           style={{
-            left: `${element.x}%`,
-            top: `${element.y}%`,
+            position: 'absolute',
             width: `${element.size}px`,
-            height: `${element.size}px`
-          }}
-          animate={{
-            y: [0, -30, 0],
-            rotate: [0, 180, 360]
-          }}
-          transition={{
-            duration: element.duration,
-            repeat: Infinity,
-            ease: "easeInOut"
+            height: `${element.size}px`,
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)',
+            top: `${element.y}%`,
+            left: `${element.x}%`,
+            animation: `float ${element.duration}s ease-in-out infinite`
           }}
         />
       ))}
 
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 0.5, type: "spring" }}
-        className="register-card"
-      >
+      <div className="register-card">
         {/* Header with animated icon */}
-        <motion.div
-          initial={{ y: -20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.1 }}
-          className="register-header"
-        >
-          <motion.div
-            animate={{
-              rotate: [0, 10, -10, 0]
-            }}
-            transition={{
-              duration: 4,
-              repeat: Infinity,
-              ease: "easeInOut"
-            }}
-            className="header-icon"
-          >
+        <div className="register-header">
+          <div className="header-icon">
             <Sparkles />
-          </motion.div>
+          </div>
           <h1>Create Account</h1>
           <p>Join us and start your journey</p>
-        </motion.div>
+        </div>
 
         <form onSubmit={handleSubmit} className="register-form">
           {/* Name Field */}
-          <motion.div
-            initial={{ x: -20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="form-group"
-          >
-            <label className="form-label">
-              <User className="label-icon" />
+          <div className="form-group">
+            <label>
+              <User size={16} className="label-icon" />
               Full Name
               <span className="required">*</span>
             </label>
-            <motion.div
-              animate={{
-                scale: focusedField === 'name' ? 1.02 : 1
+            <input
+              type="text"
+              placeholder="Enter your full name"
+              value={formData.name}
+              onChange={(e) => {
+                setFormData({ ...formData, name: e.target.value });
+                setErrors({ ...errors, name: '' });
               }}
-              transition={{ type: "spring", stiffness: 300 }}
-            >
-              <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-                onFocus={() => setFocusedField('name')}
-                onBlur={() => setFocusedField(null)}
-                className={`form-input ${errors.name ? 'error' : ''}`}
-                placeholder="Enter your full name"
-                disabled={isSubmitting}
-              />
-            </motion.div>
-            <AnimatePresence>
-              {errors.name && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="error-message"
-                >
-                  <AlertCircle className="error-icon" />
-                  {errors.name}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
+              onFocus={() => handleFocus('name')}
+              onBlur={handleBlur}
+              className={`form-input ${errors.name ? 'error' : ''} ${focusedField === 'name' ? 'focused' : ''}`}
+              disabled={isSubmitting}
+            />
+            {errors.name && (
+              <div className="error-message">
+                <AlertCircle className="error-icon" />
+                {errors.name}
+              </div>
+            )}
+          </div>
 
           {/* Email Field */}
-          <motion.div
-            initial={{ x: -20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="form-group"
-          >
-            <label className="form-label">
-              <Mail className="label-icon" />
+          <div className="form-group">
+            <label>
+              <Mail size={16} className="label-icon" />
               Email Address
               <span className="required">*</span>
             </label>
-            <motion.div
-              animate={{
-                scale: focusedField === 'email' ? 1.02 : 1
+            <input
+              type="email"
+              placeholder="Enter your email address"
+              value={formData.email}
+              onChange={(e) => {
+                setFormData({ ...formData, email: e.target.value });
+                setErrors({ ...errors, email: '' });
               }}
-              transition={{ type: "spring", stiffness: 300 }}
-            >
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                onFocus={() => setFocusedField('email')}
-                onBlur={() => setFocusedField(null)}
-                className={`form-input ${errors.email ? 'error' : ''}`}
-                placeholder="Enter your email address"
-                disabled={isSubmitting}
-              />
-            </motion.div>
-            <AnimatePresence>
-              {errors.email && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="error-message"
-                >
-                  <AlertCircle className="error-icon" />
-                  {errors.email}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
+              onFocus={() => handleFocus('email')}
+              onBlur={handleBlur}
+              className={`form-input ${errors.email ? 'error' : ''} ${focusedField === 'email' ? 'focused' : ''}`}
+              disabled={isSubmitting}
+            />
+            {errors.email && (
+              <div className="error-message">
+                <AlertCircle className="error-icon" />
+                {errors.email}
+              </div>
+            )}
+          </div>
 
           {/* Password Field */}
-          <motion.div
-            initial={{ x: -20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.4 }}
-            className="form-group"
-          >
-            <label className="form-label">
-              <Lock className="label-icon" />
+          <div className="form-group">
+            <label>
+              <Lock size={16} className="label-icon" />
               Password
               <span className="required">*</span>
             </label>
-            <motion.div
-              animate={{
-                scale: focusedField === 'password' ? 1.02 : 1
-              }}
-              transition={{ type: "spring", stiffness: 300 }}
-              className="password-input-wrapper"
-            >
+            <div className="password-input-wrapper">
               <input
-                type={showPassword ? "text" : "password"}
-                name="password"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Enter your password"
                 value={formData.password}
-                onChange={handleChange}
-                onFocus={() => setFocusedField('password')}
-                onBlur={() => setFocusedField(null)}
-                className={`form-input ${errors.password ? 'error' : ''}`}
-                placeholder="Create a strong password"
+                onChange={(e) => {
+                  setFormData({ ...formData, password: e.target.value });
+                  setErrors({ ...errors, password: '' });
+                  setPasswordStrength(getPasswordStrength());
+                }}
+                onFocus={() => handleFocus('password')}
+                onBlur={handleBlur}
+                className={`form-input ${errors.password ? 'error' : ''} ${focusedField === 'password' ? 'focused' : ''}`}
                 disabled={isSubmitting}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="password-toggle"
+                disabled={isSubmitting}
               >
                 {showPassword ? <EyeOff /> : <Eye />}
               </button>
-            </motion.div>
+            </div>
             
             {/* Password Strength Indicator */}
             {formData.password && (
-              <motion.div
-                initial={{ opacity: 0, width: 0 }}
-                animate={{ opacity: 1, width: "100%" }}
-                className="password-strength"
-              >
+              <div className="password-strength">
                 <div className="strength-bar">
-                  <motion.div
+                  <div
                     className="strength-fill"
-                    style={{ backgroundColor: getPasswordStrengthColor() }}
-                    initial={{ width: 0 }}
-                    animate={{ width: `${(passwordStrength / 4) * 100}%` }}
-                    transition={{ duration: 0.3 }}
+                    style={{ backgroundColor: getPasswordStrengthColor(), width: `${(getPasswordStrength() / 5) * 100}%` }}
                   />
                 </div>
                 <span className="strength-text" style={{ color: getPasswordStrengthColor() }}>
                   {getPasswordStrengthText()}
                 </span>
-              </motion.div>
+              </div>
             )}
             
-            <AnimatePresence>
-              {errors.password && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="error-message"
-                >
-                  <AlertCircle className="error-icon" />
-                  {errors.password}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
+            {errors.password && (
+              <div className="error-message">
+                <AlertCircle className="error-icon" />
+                {errors.password}
+              </div>
+            )}
+          </div>
 
           {/* Confirm Password Field */}
-          <motion.div
-            initial={{ x: -20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="form-group"
-          >
-            <label className="form-label">
-              <Lock className="label-icon" />
+          <div className="form-group">
+            <label>
+              <Lock size={16} className="label-icon" />
               Confirm Password
               <span className="required">*</span>
             </label>
-            <motion.div
-              animate={{
-                scale: focusedField === 'confirmPassword' ? 1.02 : 1
-              }}
-              transition={{ type: "spring", stiffness: 300 }}
-              className="password-input-wrapper"
-            >
+            <div className="password-input-wrapper">
               <input
-                type={showConfirmPassword ? "text" : "password"}
-                name="confirmPassword"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                onFocus={() => setFocusedField('confirmPassword')}
-                onBlur={() => setFocusedField(null)}
-                className={`form-input ${errors.confirmPassword ? 'error' : ''}`}
+                type={showConfirmPassword ? 'text' : 'password'}
                 placeholder="Confirm your password"
+                value={formData.confirmPassword}
+                onChange={(e) => {
+                  setFormData({ ...formData, confirmPassword: e.target.value });
+                  setErrors({ ...errors, confirmPassword: '' });
+                }}
+                onFocus={() => handleFocus('confirmPassword')}
+                onBlur={handleBlur}
+                className={`form-input ${errors.confirmPassword ? 'error' : ''} ${focusedField === 'confirmPassword' ? 'focused' : ''}`}
                 disabled={isSubmitting}
               />
               <button
                 type="button"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                 className="password-toggle"
+                disabled={isSubmitting}
               >
                 {showConfirmPassword ? <EyeOff /> : <Eye />}
               </button>
-            </motion.div>
-            <AnimatePresence>
-              {errors.confirmPassword && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="error-message"
-                >
-                  <AlertCircle className="error-icon" />
-                  {errors.confirmPassword}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
+            </div>
+            {errors.confirmPassword && (
+              <div className="error-message">
+                <div className="error-icon">
+                  <AlertCircle />
+                </div>
+                {errors.confirmPassword}
+              </div>
+            )}
+          </div>
 
           {/* Submit Button */}
-          <motion.button
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.6 }}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+          <button
             type="submit"
             disabled={isSubmitting}
-            className="submit-button"
+            className="submit-btn"
           >
             {isSubmitting ? (
               <>
-                <Loader2 className="animate-spin" />
+                <div className="loading-spinner"></div>
                 Creating Account...
               </>
             ) : (
               <>
-                <Zap />
+                <CheckCircle />
                 Create Account
               </>
             )}
-          </motion.button>
+          </button>
         </form>
 
         {/* Footer */}
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.7 }}
-          className="register-footer"
-        >
+        <div className="register-footer">
           <p>
             Already have an account?{' '}
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+            <button
               onClick={handleLoginRedirect}
               className="login-link"
             >
               Sign in here
-            </motion.button>
+            </button>
           </p>
-        </motion.div>
-      </motion.div>
-    </motion.div>
+        </div>
+      </div>
+    </div>
   );
 };
 
