@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const { connectDB } = require('./utils/database');
 const { globalErrorHandler } = require('./middleware/errorHandler');
+const path = require('path');
 
 // Import routes
 const userRoutes = require('./routes/userRoutes');
@@ -74,81 +75,45 @@ if (process.env.NODE_ENV === 'development') {
   });
 }
 
-/**
- * Health Check Endpoint
- * Simple endpoint to verify server is running
- */
+// Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
-    success: true,
-    message: 'Server is running',
+    status: 'OK',
+    message: 'User Management API is running',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    version: '1.0.0'
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
-/**
- * API Routes
- * Mount user routes under /api/users prefix
- */
+// API Routes
 app.use('/api/users', userRoutes);
 
-/**
- * Root Endpoint
- * Basic information about the API
- */
+// Root endpoint for Vercel
 app.get('/', (req, res) => {
   res.status(200).json({
-    success: true,
-    message: 'User Management System API',
+    status: 'OK',
+    message: 'User Management Backend API',
     version: '1.0.0',
-    description: 'A RESTful API for managing users with Basic Authentication',
     endpoints: {
       health: '/health',
-      users: {
-        create: 'POST /api/users',
-        getAll: 'GET /api/users',
-        getById: 'GET /api/users/:id',
-        update: 'PUT /api/users/:id',
-        delete: 'DELETE /api/users/:id',
-        profile: 'GET /api/users/profile'
-      },
-      authentication: {
-        type: 'Basic Authentication',
-        header: 'Authorization: Basic <base64(email:password)>'
-      }
+      users: '/api/users',
+      auth: '/api/auth'
     },
-    documentation: 'https://github.com/yourusername/user-management-system'
+    timestamp: new Date().toISOString()
   });
 });
 
-/**
- * 404 Handler - Route Not Found
- * Handles requests to non-existent endpoints
- */
-app.use('*', (req, res, next) => {
+// 404 handler for undefined routes
+app.use('*', (req, res) => {
   res.status(404).json({
-    success: false,
+    status: 'Error',
     message: 'Route not found',
-    error: `Cannot ${req.method} ${req.originalUrl}`,
-    availableEndpoints: [
-      'GET /',
-      'GET /health',
-      'POST /api/users',
-      'GET /api/users',
-      'GET /api/users/:id',
-      'PUT /api/users/:id',
-      'DELETE /api/users/:id',
-      'GET /api/users/profile'
-    ]
+    path: req.originalUrl,
+    availableEndpoints: ['/health', '/api/users', '/api/auth']
   });
 });
 
-/**
- * Global Error Handler
- * Must be the last middleware in the stack
- */
+// Global Error Handler
 app.use(globalErrorHandler);
 
 /**
