@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "name": "user-management-backend",
+  "builds": [
+    {
+      "src": "app.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/app.js"
+    }
+  ],
+  "env": {
+    "MONGODB_URI": "your_mongodb_connection_string",
+    "JWT_SECRET": "your_jwt_secret_key"
+  }
+}
