@@ -30,12 +30,12 @@ const connectDB = async () => {
     // Connect to MongoDB
     const conn = await mongoose.connect(mongoURI, options);
 
-    console.log(✅ MongoDB Connected: \);
-    console.log(📊 Database: \);
+    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+    console.log(`📊 Database: ${conn.connection.name}`);
     
     // Log connection details in development
     if (process.env.NODE_ENV === 'development') {
-      console.log(🔗 Connection String: \);
+      console.log(`🔗 Connection String: ${mongoURI.replace(/\/\/.*@/, '//***:***@')}`);
     }
 
     // Handle connection events
